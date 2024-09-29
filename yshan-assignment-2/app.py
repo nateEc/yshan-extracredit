@@ -21,19 +21,11 @@ def set_data():
 @app.route('/run', methods=['POST'])
 def run_kmeans():
     global kmeans, data
-    
-    # Get the JSON data from the request body
     req_data = request.get_json()
-
-    # Handle the case where no data is sent or JSON decoding fails
     if not req_data:
         return jsonify({"error": "No data provided or invalid JSON."}), 400
-
-    # Verify if the 'data' key exists in the request
     if 'data' not in req_data:
         return jsonify({"error": "'data' key missing in request."}), 400
-
-    # Convert the data points from the request to a NumPy array
     data = np.array(req_data['data'])
     method = req_data.get('init_method', 'random')  # Use 'random' as default if not provided
 
@@ -47,6 +39,36 @@ def run_kmeans():
         'centroids': kmeans.centroids.tolist(),
         'clusters': clusters.tolist()
     })
+
+@app.route('/step', methods=['POST'])
+def step_kmeans():
+    global kmeans, data
+    
+    # No need to get data from the request in every step, data should already be stored.
+    if data is None or len(data) == 0:
+        return jsonify({"error": "Data not generated yet."}), 400
+    
+    if kmeans is None:
+        method = request.json.get('init_method', 'random')  # Default to 'random'
+        kmeans = KMeans(k=3, init_method=method)
+        
+    data = np.array(request.get_json()['data'])
+    # Perform a single step of KMeans
+    step_result = kmeans.run_kmeans_step(data)
+    
+    # Return the current state after the step
+    return jsonify({
+        'centroids': step_result['centroids'],  # Updated centroids
+        'clusters': step_result['clusters'],    # Cluster assignments
+        'converged': step_result['converged']   # Whether it has converged
+    })
+
+@app.route('/reset', methods=['POST'])
+def reset_kmeans():
+    global kmeans, data
+    kmeans = None  # Clear the current KMeans instance
+    data = None  # Clear the data points
+    return jsonify({"message": "KMeans reset successfully"}), 200
 
 
 if __name__ == '__main__':

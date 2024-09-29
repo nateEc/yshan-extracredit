@@ -108,9 +108,105 @@ function stepThroughKMeans() {
 }
 
 
+let convergedBool = false; // To track whether KMeans has converged
+// Function to step through the KMeans algorithm
+
+function stepBThroughKMeans() {
+    if (convergedBool) return; // Stop if already converged
+    const method = document.getElementById("init-method").value;
+
+    console.log("Selected initialization method:", method); // Log for debugging
+    console.log("Data being sent:", dataPoints);  // Debug log to check dataPoints
+    fetch('/step', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: dataPoints,  // Ensure the data points are being sent under the 'data' key
+            init_method: method  // Send the initialization method
+        }),
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Server error:', text);
+                throw new Error('Failed to step through KMeans algorithm.');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // Update centroids, clusters, and check for convergence
+        centroids = data.centroids;
+        clusters = data.clusters;
+        convergedBool = data.converged;
+        console.log("Response from call: converged Bool:::", convergedBool)
+        // Redraw the visualization
+        drawVisualization();
+
+        // If not converged, continue stepping through
+        if (!convergedBool) {
+            setTimeout(stepBThroughKMeans, 1000); // Call the next step after a delay (1 second)
+        } else {
+            console.log(convergedBool)
+            alert('KMeans has converged!');
+            convergedBool = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error.message);
+        alert(`Error: ${error.message}`);
+    });
+}
+
+// Function to reset the KMeans algorithm
+function resetKMeans() {
+    // Reset the global variables for data points, centroids, and clusters
+    dataPoints = [];
+    centroids = [];
+    clusters = [];
+
+    // Clear the visualization
+    drawVisualization();
+
+    // Notify the backend to reset KMeans instance
+    fetch('/reset', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Server error:', text);  // Log the server's HTML error response
+                throw new Error('Failed to reset KMeans.');
+            });
+        }
+        console.log('KMeans successfully reset.');
+    })
+    .catch(error => {
+        console.error('Error:', error.message);
+        alert(`Error: ${error.message}`);
+    });
+}
+
+// Event listener for the Reset button
+document.getElementById("reset-btn").addEventListener("click", resetKMeans);
+// Event listener for step-through button
+document.getElementById("step-btn").addEventListener("click", function() {
+    convergedBool = false; // Reset the convergence flag
+    stepBThroughKMeans(); // Start stepping through KMeans
+});
+
 // Event listeners for buttons
 document.getElementById("generate-btn").addEventListener("click", generateDataset);
-document.getElementById("step-btn").addEventListener("click", function() {
+document.getElementById("run-btn").addEventListener("click", function() {
     // Only run KMeans if data has been generated
     if (dataPoints.length === 0) {
         alert("Please generate data first.");
@@ -119,5 +215,4 @@ document.getElementById("step-btn").addEventListener("click", function() {
     stepThroughKMeans();
 });
 
-// Initial visualization setup
 generateDataset();
